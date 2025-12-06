@@ -82,8 +82,7 @@ Run:
 bash scripts/eval/cal_metric.sh
 ```
 
-**Output**: 
-- Metrics will be saved to `eval_results/scores/evaluation_summary.xlsx`
+**Output**: Metrics will be saved to `eval_results/scores/evaluation_summary.xlsx`
 
 
 ## 🏋️ Training
@@ -103,9 +102,7 @@ Edit `scripts/train/train.sh` to configure your actual paths and register your t
 bash scripts/train/train.sh
 ```
 
-**Output**: 
-- Checkpoints will be saved to `OUTPUT_PATH`
-- Training logs will be saved to `OUTPUT_PATH/train.log`
+**Output**: Checkpoints will be saved to `OUTPUT_PATH`
 
 After training, you can evaluate the trained checkpoint on CrossPoint-Bench and other benchmarks using the evaluation scripts described above.
 
