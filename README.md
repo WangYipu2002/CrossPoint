@@ -5,7 +5,7 @@ This repository provides a comprehensive framework for evaluating VLMs on the Cr
 [![arXiv](https://img.shields.io/badge/arXiv-2512.04686-b31b1b.svg)](https://arxiv.org/abs/2512.04686)
 
 <p align="center">
-  <img src="assets/teaser.png" width="100%">
+  <img src="assert/teaser.png" width="100%">
 </p>
 
 ## 🚀 Setup
