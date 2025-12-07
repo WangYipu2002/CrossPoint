@@ -119,10 +119,13 @@ def process_benchmark(model, benchmark_name, benchmark_path, image_base, result_
     # Create result directory if it doesn't exist
     os.makedirs(result_dir, exist_ok=True)
 
-    # Read benchmark data
+    # Read benchmark data 
     print(f"Loading benchmark from {benchmark_path}")
+    data = []
     with open(benchmark_path, "r") as f:
-        data = json.load(f)
+        for line in f:
+            if line.strip():
+                data.append(json.loads(line))
 
     # Check existing result file and get tested data
     tested_keys = set()
@@ -181,7 +184,7 @@ def main():
 
     # Validate benchmark directory structure
     benchmark_name = os.path.basename(args.benchmark_path)
-    benchmark_json = os.path.join(args.benchmark_path, f"{benchmark_name}.json")
+    benchmark_json = os.path.join(args.benchmark_path, f"{benchmark_name}.jsonl")
     image_dir = os.path.join(args.benchmark_path, "image")
     
     if not os.path.exists(benchmark_json):

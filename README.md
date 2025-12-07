@@ -2,11 +2,18 @@
 
 This repository provides a comprehensive framework for evaluating VLMs on the CrossPoint-Bench benchmark and training CroPond.
 
-[![arXiv](https://img.shields.io/badge/arXiv-2512.04686-b31b1b.svg)](https://arxiv.org/abs/2512.04686)
+[![arXiv](https://img.shields.io/badge/arXiv-2512.04686-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2512.04686)
+[![HuggingFace](https://img.shields.io/badge/🤗%20HuggingFace-CrossPoint--Bench-yellow.svg)](https://huggingface.co/datasets/WangYipu2002/CrossPoint-Bench)
 
 <p align="center">
-  <img src="assert/teaser.png" width="100%">
+  <img src="assets/teaser.png" width="100%">
 </p>
+
+## 📋 TODO
+- [x] Release CrossPoint-Bench
+- [ ] Release CrossPoint-378K
+- [ ] Release CroPond model
+
 
 ## 🚀 Setup
 
@@ -44,8 +51,10 @@ Download CrossPoint-Bench from [Hugging Face](https://huggingface.co/datasets/Wa
 After downloading, the directory structure should look like:
 ```
 CrossPoint-Bench/
-├── image/           # Contains all benchmark images
-└── CrossPoint-Bench.json  # Benchmark annotations
+├── image/                     # Contains all benchmark images
+│   ├── origin_image/          # Original scene images
+│   └── visual_image/          # Annotated visualization images
+└── CrossPoint-Bench.jsonl     # Benchmark annotations
 ```
 
 ### Step 2: Run Inference
@@ -106,10 +115,7 @@ bash scripts/train/train.sh
 
 After training, you can evaluate the trained checkpoint on CrossPoint-Bench and other benchmarks using the evaluation scripts described above.
 
-## 📋 TODO
-- [ ] Release CrossPoint-Bench
-- [ ] Release CrossPoint-378K
-- [ ] Release CroPond model
+
 
 ## 🙏 Acknowledgment
 This repository is built upon the codebase of [LLaMA Factory](https://github.com/hiyouga/LLaMA-Factory).
