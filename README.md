@@ -12,7 +12,16 @@ This repository provides a comprehensive framework for evaluating VLMs on the Cr
 ## 📋 TODO
 - [x] Release CrossPoint-Bench
 - [ ] Release CrossPoint-378K
-- [ ] Release CroPond model
+- [x] Release CroPond model
+
+## 🤖 Models
+
+We provide two versions of CroPond:
+
+| Model | Base Model | Parameters | HuggingFace |
+|-------|------------|------------|-------------|
+| CroPond-3B | Qwen2.5-VL-2B | 3B | [🤗 WangYipu2002/CroPond-3B](https://huggingface.co/WangYipu2002/CroPond-3B) |
+| CroPond-7B | Qwen2.5-VL-7B | 7B | [🤗 WangYipu2002/CroPond-7B](https://huggingface.co/WangYipu2002/CroPond-7B) |
 
 
 ## 🚀 Setup
