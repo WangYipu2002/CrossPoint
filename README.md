@@ -11,7 +11,7 @@ This repository provides a comprehensive framework for evaluating VLMs on the Cr
 
 ## 📋 TODO
 - [x] Release CrossPoint-Bench
-- [ ] Release CrossPoint-378K
+- [x] Release CrossPoint-378K
 - [x] Release CroPond model
 
 ## 🤖 Models
@@ -61,8 +61,8 @@ After downloading, the directory structure should look like:
 ```
 CrossPoint-Bench/
 ├── image/                     # Contains all benchmark images
-│   ├── origin_image/          # Original scene images
-│   └── visual_image/          # Annotated visualization images
+│   ├── origin_image/          # Original images
+│   └── visual_image/          # Annotated images
 └── CrossPoint-Bench.jsonl     # Benchmark annotations
 ```
 
