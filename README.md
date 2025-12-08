@@ -3,7 +3,8 @@
 This repository provides a comprehensive framework for evaluating VLMs on the CrossPoint-Bench benchmark and training CroPond.
 
 [![arXiv](https://img.shields.io/badge/arXiv-2512.04686-b31b1b.svg?logo=arxiv&logoColor=white)](https://arxiv.org/abs/2512.04686)
-[![HuggingFace](https://img.shields.io/badge/🤗%20HuggingFace-CrossPoint--Bench-yellow.svg)](https://huggingface.co/datasets/WangYipu2002/CrossPoint-Bench)
+[![HuggingFace Dataset](https://img.shields.io/badge/🤗%20Dataset-CrossPoint--Bench-green.svg)](https://huggingface.co/datasets/WangYipu2002/CrossPoint-Bench)
+[![HuggingFace Dataset](https://img.shields.io/badge/🤗%20Dataset-CrossPoint--378K-green.svg)](https://huggingface.co/datasets/WangYipu2002/CrossPoint-378K)
 
 <p align="center">
   <img src="assets/teaser.png" width="100%">
