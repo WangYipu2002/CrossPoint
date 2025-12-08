@@ -10,10 +10,10 @@ export WANDB_MODE=offline
 export ACCELERATE_CPU_AFFINITY=1
 
 # You should edit the following paths
-export IMAGE_DIR=/your/image/data/
-export PRETRAIN_MODEL_PATH=/your/model/pretained_model
-export OUTPUT_PATH=/your/output/checkpoints
-export DATASET=CrossPoint-378K # change the dataset name indata/dataset_info.json 
+export MEDIA_DIR=/your/path/to/training_data/directory
+export PRETRAIN_MODEL_PATH=/your/path/to/pretained_model
+export OUTPUT_PATH=/your/path/to/output/checkpoints
+export DATASET=CrossPoint-378K # change the dataset name in data/dataset_info.json 
 
 if [ ! -d "$OUTPUT_PATH" ]; then
   mkdir "$OUTPUT_PATH"
@@ -26,7 +26,7 @@ torchrun --nproc_per_node=8 --nnodes=1 --master_port=29514 \
   --do_train \
   --model_name_or_path $PRETRAIN_MODEL_PATH \
   --dataset $DATASET \
-  --media_dir $IMAGE_DIR \
+  --media_dir $MEDIA_DIR \
   --template qwen2_vl \
   --finetuning_type full \
   --output_dir $OUTPUT_PATH \
@@ -41,7 +41,7 @@ torchrun --nproc_per_node=8 --nnodes=1 --master_port=29514 \
   --lr_scheduler_type cosine \
   --logging_steps 5 \
   --cutoff_len 4096 \
-  --save_steps 40000 \
+  --save_steps 10000 \
   --plot_loss \
   --num_train_epochs 1 \
   --bf16 \

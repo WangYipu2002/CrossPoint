@@ -18,10 +18,10 @@ This repository provides a comprehensive framework for evaluating VLMs on the Cr
 
 We provide two versions of CroPond:
 
-| Model | Base Model | Parameters | HuggingFace |
+| Model | Base Model | Parameters | Checkpoints |
 |-------|------------|------------|-------------|
-| CroPond-3B | Qwen2.5-VL-2B | 3B | [🤗 WangYipu2002/CroPond-3B](https://huggingface.co/WangYipu2002/CroPond-3B) |
-| CroPond-7B | Qwen2.5-VL-7B | 7B | [🤗 WangYipu2002/CroPond-7B](https://huggingface.co/WangYipu2002/CroPond-7B) |
+| CroPond-3B | Qwen2.5-VL-3B | 3B | [🤗 CroPond-3B](https://huggingface.co/WangYipu2002/CroPond-3B) |
+| CroPond-7B | Qwen2.5-VL-7B | 7B | [🤗 CroPond-7B](https://huggingface.co/WangYipu2002/CroPond-7B) |
 
 
 ## 🚀 Setup
@@ -55,7 +55,7 @@ The evaluation process consists of three steps:
 
 ### Step 1: Download CrossPoint-Bench
 
-Download CrossPoint-Bench from [Hugging Face](https://huggingface.co/datasets/WangYipu2002/CrossPoint-Bench).
+Download [CrossPoint-Bench](https://huggingface.co/datasets/WangYipu2002/CrossPoint-Bench) from Hugging Face.
 
 After downloading, the directory structure should look like:
 ```
@@ -109,6 +109,20 @@ bash scripts/eval/cal_metric.sh
 
 In this repository, we primarily use [CrossPoint-378K](https://huggingface.co/datasets/WangYipu2002/CrossPoint-378K), which can be downloaded from Hugging Face. 
 
+After downloading, the training datasets directory structure should look like:
+
+```
+training_datasets/
+├── CrossPoint-378K/               # Main training dataset
+│   ├── CrossPoint-378K.json       # Main data file (ShareGPT format)
+│   ├── image/                     # Original images directory
+│   │   └── [scene_id]/            # Scene ID directory
+│   │       └── [images]           # Scene images
+│   └── visual_image/              # Annotated images directory
+│       └── [scene_id]/            # Scene ID directory
+│           └── [images]           # Annotated images with visual markers
+└── other_datasets/                # Community mainstream datasets （recommend）
+```
 
 To enhance the model's spatial understanding capabilities while maintaining its general knowledge, we also incorporate other datasets including [RefSpatial](https://huggingface.co/datasets/JingkunAn/RefSpatial), [SAT](https://huggingface.co/datasets/array/SAT), [SPAR-7M](https://huggingface.co/datasets/jasonzhango/SPAR-7M), [MulSeT](https://huggingface.co/datasets/WanyueZhang/MulSeT) and [LLaVA-1.5](https://arxiv.org/abs/2310.03744). Please refer to the original papers and repositories for dataset preparation instructions.
 

@@ -1,6 +1,6 @@
 {
     "CrossPoint-378K": {
-      "file_name": "your/path/CrossPoint-378K.json",
+      "file_name": "your/path/to/CrossPoint-378K.json",
       "formatting": "sharegpt",
       "columns": {
         "messages": "messages",
