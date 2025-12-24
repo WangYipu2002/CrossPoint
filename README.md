@@ -102,7 +102,7 @@ Run:
 bash scripts/eval/cal_metric.sh
 ```
 
-**Output**: Metrics will be saved to `eval_results/scores/evaluation_summary.xlsx`
+**Output**: Metrics will be saved to `eval_results/scores/evaluation_report.txt`
 
 
 ## 🏋️ Training
