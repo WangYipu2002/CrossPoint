@@ -9,17 +9,20 @@ import re
 import os
 import argparse
 from typing import Dict, List, Any, Tuple, Optional
-
+from PIL import Image
 
 class AnswerExtractor:
     """Extracts and processes answers from model evaluation results."""
     
-    def __init__(self, single_file_path: str = None, coord_format: str = 'absolute'):
+    def __init__(self, single_file_path: str = None, coord_format: str = 'absolute', image_base: str = None):
         if not single_file_path:
             raise ValueError("Must specify input file path (--file parameter)")
         
         # Coordinate format: 'absolute', 'relative_1000', or 'relative_1'
         self.coord_format = coord_format
+        
+        # Store the base path for images
+        self.image_base = image_base
         
         self.input_files = {}
         self._process_single_file(single_file_path)
@@ -55,15 +58,45 @@ class AnswerExtractor:
         
         self.input_files[model_name] = file_path
         print(f"Model: {model_name} | Coord format: {self.coord_format}")
+
+    def _get_image_dimensions(self, item: Dict[str, Any]) -> Tuple[Optional[int], Optional[int]]:
+        """
+        Helper: Get image dimensions from metadata OR by reading the image file.
+        """
+        # 1. Try to get from item metadata
+        if item.get("image_width") and item.get("image_height"):
+            return item["image_width"], item["image_height"]
+        
+        # 2. Try to read from image file
+        images = item.get("images", [])
+        if not images:
+            return None, None
+            
+        # Usually the first image is the target for grounding
+        rel_path = images[0]
+        
+        # Construct full path using image_base if provided
+        if self.image_base:
+            img_path = os.path.join(self.image_base, rel_path)
+        else:
+            # Fallback to relative path if no base is provided (might fail if not running from root)
+            img_path = rel_path
+        
+        if not os.path.exists(img_path):
+            # print(f"Warning: Image file not found at {img_path}")
+            return None, None
+            
+        try:
+            with Image.open(img_path) as img:
+                return img.size # Returns (width, height)
+        except Exception as e:
+            # print(f"Warning: Could not read dimensions for {img_path}: {e}")
+            return None, None
     
     def convert_coordinates_for_item(self, item: Dict[str, Any], model_name: str) -> Dict[str, Any]:
         """
         Convert and add absolute coordinate field for coordinate-based tasks.
-        
-        Supports three coordinate formats:
-        - 'absolute': Pixel coordinates (no conversion)
-        - 'relative_1000': Normalized to [0, 1000] range
-        - 'relative_1': Normalized to [0, 1] range
+        Dynamically reads image size if needed.
         """
         result = item.copy()
         
@@ -75,6 +108,7 @@ class AnswerExtractor:
             return result
         
         task_type = item.get("type","")
+        # Ensure we only process coordinate tasks
         if task_type not in ["Fine-grained Grounding", "Correspondence-Pointing"]:
             return result
         
@@ -84,35 +118,26 @@ class AnswerExtractor:
         x = extracted_answer["x"]
         y = extracted_answer["y"]
         
-        # Convert coordinates based on format
-        if self.coord_format == 'absolute':
-            # Already in absolute pixel coordinates
-            x_abs, y_abs = x, y
+        x_abs, y_abs = x, y
+        
+        # Perform conversion based on format
+        if self.coord_format == 'relative_1000' or self.coord_format == 'relative_1':
+            # We need image dimensions
+            w, h = self._get_image_dimensions(item)
             
-        elif self.coord_format == 'relative_1000':
-            # Convert from [0, 1000] to absolute pixels
-            image_width = item.get("image_width")
-            image_height = item.get("image_height")
-            if image_width is None or image_height is None:
-                print(f"Warning: Missing image dimensions for idx {item.get('idx')}, using original coordinates")
+            if w is None or h is None:
+                # If we can't find dimensions, we can't convert accurately.
+                print(f"Warning: Could not determine image size for idx {item.get('idx')}, keeping coordinates as is.")
                 x_abs, y_abs = x, y
             else:
-                x_abs = (x / 1000.0) * image_width
-                y_abs = (y / 1000.0) * image_height
-                
-        elif self.coord_format == 'relative_1':
-            # Convert from [0, 1] to absolute pixels
-            image_width = item.get("image_width")
-            image_height = item.get("image_height")
-            if image_width is None or image_height is None:
-                print(f"Warning: Missing image dimensions for idx {item.get('idx')}, using original coordinates")
-                x_abs, y_abs = x, y
-            else:
-                x_abs = x * image_width
-                y_abs = y * image_height
-        else:
-            print(f"Warning: Unknown coordinate format '{self.coord_format}', using original coordinates")
-            x_abs, y_abs = x, y
+                if self.coord_format == 'relative_1000':
+                    x_abs = (x / 1000.0) * w
+                    y_abs = (y / 1000.0) * h
+                elif self.coord_format == 'relative_1':
+                    x_abs = x * w
+                    y_abs = y * h
+        
+        # If format is 'absolute', no change needed
         
         result["extracted_answer_absolute"] = {
             "x": x_abs,
@@ -406,7 +431,6 @@ class AnswerExtractor:
                 "type_stats": type_stats
             }
         
-        
         # Print summary
         for model_name, stats in summary.items():
             print(f"\n{model_name}: {stats['success']}/{stats['total']} ({stats['success_rate']:.1%})")
@@ -429,12 +453,18 @@ def main():
     parser = argparse.ArgumentParser(description="Extract answers from model evaluation results")
     parser.add_argument('--file', '-f', type=str, required=True,
                        help='Path to JSONL file to process')
+    parser.add_argument('--image_base', '-img', type=str, required=True,
+                       help='Path to image folder')
     parser.add_argument('--coord_format', type=str, default='absolute',
                        choices=['absolute', 'relative_1000', 'relative_1'],
                        help='Coordinate format of the model output (default: absolute)')
     args = parser.parse_args()
     
-    extractor = AnswerExtractor(single_file_path=args.file, coord_format=args.coord_format)
+    extractor = AnswerExtractor(
+        single_file_path=args.file, 
+        coord_format=args.coord_format,
+        image_base=args.image_base
+    )
     
     if not extractor.input_files:
         print("Error: No files to process")

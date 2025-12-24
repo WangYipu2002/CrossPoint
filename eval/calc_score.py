@@ -2,9 +2,11 @@
 """
 Evaluation script for cross-view correspondence tasks.
 
-Evaluates two types of tasks:
-- Coordinate-based: Fine-grained Grounding, Correspondence-Pointing
-- Multiple-choice: Visibility Reasoning, Correspondence-Judgement
+Features:
+- Evaluates Coordinate-based and Multiple-choice tasks.
+- Verifies coordinates against Segmentation Masks (Base64).
+- Generates detailed hierarchical reports (Type -> Level).
+- Outputs to console and text file (no Excel).
 """
 
 import json
@@ -15,9 +17,11 @@ import io
 import os
 import argparse
 import glob
-from typing import Dict, List, Any, Optional
-import pandas as pd
+from typing import Dict, List, Any, Optional, Tuple
 
+# ==========================================
+# Core Evaluation Logic
+# ==========================================
 
 def decode_base64_image(base64_str: str) -> Optional[np.ndarray]:
     """Decode base64 encoded image string to numpy array."""
@@ -28,9 +32,15 @@ def decode_base64_image(base64_str: str) -> Optional[np.ndarray]:
     except Exception:
         return None
 
-
 def is_point_in_mask(point: Dict[str, float], mask_image: np.ndarray, threshold: int = 128) -> bool:
-    """Check if a point falls within the white region of a mask."""
+    """
+    Check if a point falls within the white region of a mask.
+    
+    Logic:
+    1. Get absolute x, y from extraction.
+    2. Check boundaries.
+    3. Check pixel value at (y, x).
+    """
     if mask_image is None:
         return False
     
@@ -38,28 +48,37 @@ def is_point_in_mask(point: Dict[str, float], mask_image: np.ndarray, threshold:
         x, y = int(point['x']), int(point['y'])
         height, width = mask_image.shape[:2]
         
+        # Boundary check
         if not (0 <= x < width and 0 <= y < height):
             return False
         
-        mask_gray = np.mean(mask_image, axis=2) if len(mask_image.shape) == 3 else mask_image
+        # Handle grayscale vs RGB masks
+        if len(mask_image.shape) == 3:
+            # Assuming standard mask is white (255) on black (0)
+            # Taking mean or just checking one channel usually works for binary masks
+            mask_gray = np.mean(mask_image, axis=2)
+        else:
+            mask_gray = mask_image
+            
+        # Check pixel value
         return bool(mask_gray[y, x] > threshold)
         
     except Exception:
         return False
 
-
 def normalize_option(answer: Any) -> Optional[str]:
     """Normalize multiple-choice answer to uppercase letter."""
     if not isinstance(answer, str):
         return None
+    # Remove whitespace, parenthesis, take uppercase
     return answer.strip().upper().strip('()')
-
 
 def evaluate_coordinate_task(item: Dict[str, Any]) -> Dict[str, Any]:
     """Evaluate coordinate-based grounding tasks."""
     result = {
         'idx': item.get('idx'),
-        'type': item.get('type', ""),
+        'type': item.get('type', "Unknown"),
+        'level': item.get('level', "Unknown"), # Added level tracking
         'extraction_success': item.get('extraction_success', False),
         'score': 0,
         'details': {}
@@ -69,20 +88,24 @@ def evaluate_coordinate_task(item: Dict[str, Any]) -> Dict[str, Any]:
         result['details']['error'] = 'Answer extraction failed'
         return result
     
+    # Critical: Use absolute coordinates converted during extraction
     if 'extracted_answer_absolute' not in item:
         result['details']['error'] = 'Missing absolute coordinates'
         return result
     
     if 'answer' not in item or not isinstance(item['answer'], str):
-        result['details']['error'] = 'Missing or invalid answer field'
+        result['details']['error'] = 'Missing or invalid answer (mask) field'
         return result
     
+    # Decode ground truth mask
     mask_image = decode_base64_image(item['answer'])
     if mask_image is None:
         result['details']['error'] = 'Failed to decode mask image'
         return result
     
     extracted_point = item['extracted_answer_absolute']
+    
+    # JUDGEMENT CALL: Is the point inside the mask?
     is_correct = is_point_in_mask(extracted_point, mask_image)
     
     result['score'] = 1 if is_correct else 0
@@ -93,12 +116,12 @@ def evaluate_coordinate_task(item: Dict[str, Any]) -> Dict[str, Any]:
     
     return result
 
-
 def evaluate_letter_task(item: Dict[str, Any]) -> Dict[str, Any]:
     """Evaluate multiple-choice tasks."""
     result = {
         'idx': item.get('idx'),
-        'type': item.get('type', ""),
+        'type': item.get('type', "Unknown"),
+        'level': item.get('level', "Unknown"), # Added level tracking
         'extraction_success': item.get('extraction_success', False),
         'score': 0,
         'details': {}
@@ -129,187 +152,170 @@ def evaluate_letter_task(item: Dict[str, Any]) -> Dict[str, Any]:
     
     return result
 
+# ==========================================
+# Statistics & Reporting
+# ==========================================
 
+def calculate_hierarchical_stats(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Calculate stats grouped by Type -> Level.
+    Structure:
+    {
+        "Overall": {...},
+        "Fine-grained Grounding": {
+            "Overall": {...},
+            "object": {...},
+            "part": {...}
+        },
+        ...
+    }
+    """
+    stats = {
+        "Overall": {"total": 0, "correct": 0, "extracted": 0}
+    }
+    
+    for item in results:
+        task_type = item['type']
+        level = item['level']
+        score = item['score']
+        is_extracted = item['extraction_success']
+        
+        # Initialize Type dict
+        if task_type not in stats:
+            stats[task_type] = {"Overall": {"total": 0, "correct": 0, "extracted": 0}}
+        
+        # Initialize Level dict
+        if level not in stats[task_type]:
+            stats[task_type][level] = {"total": 0, "correct": 0, "extracted": 0}
+            
+        # Update Global
+        stats["Overall"]["total"] += 1
+        if is_extracted: stats["Overall"]["extracted"] += 1
+        if score == 1: stats["Overall"]["correct"] += 1
+        
+        # Update Type Overall
+        stats[task_type]["Overall"]["total"] += 1
+        if is_extracted: stats[task_type]["Overall"]["extracted"] += 1
+        if score == 1: stats[task_type]["Overall"]["correct"] += 1
+        
+        # Update Level
+        stats[task_type][level]["total"] += 1
+        if is_extracted: stats[task_type][level]["extracted"] += 1
+        if score == 1: stats[task_type][level]["correct"] += 1
+        
+    return stats
 
+def format_report(model_name: str, stats: Dict[str, Any]) -> str:
+    """Format statistics into a readable string table."""
+    lines = []
+    lines.append("=" * 60)
+    lines.append(f"Model: {model_name}")
+    lines.append("=" * 60)
+    lines.append(f"{'Category':<35} | {'Acc (%)':<10} | {'Corr/Tot':<10}")
+    lines.append("-" * 60)
+    
+    def get_acc(d):
+        return (d["correct"] / d["total"] * 100) if d["total"] > 0 else 0.0
+    
+    # 1. Overall
+    overall = stats["Overall"]
+    lines.append(f"{'OVERALL':<35} | {get_acc(overall):<10.2f} | {overall['correct']}/{overall['total']}")
+    lines.append("-" * 60)
+    
+    # 2. Iterate Types
+    # Filter out "Overall" key to iterate specific types
+    task_types = [k for k in stats.keys() if k != "Overall"]
+    
+    for t_type in sorted(task_types):
+        t_stats = stats[t_type]
+        # Type Overall
+        t_ov = t_stats["Overall"]
+        lines.append(f"{f'[{t_type}]':<35} | {get_acc(t_ov):<10.2f} | {t_ov['correct']}/{t_ov['total']}")
+        
+        # Levels within Type
+        levels = [k for k in t_stats.keys() if k != "Overall"]
+        for lvl in sorted(levels):
+            l_stats = t_stats[lvl]
+            lines.append(f"{f'  - {lvl}':<35} | {get_acc(l_stats):<10.2f} | {l_stats['correct']}/{l_stats['total']}")
+        lines.append("-" * 60)
+        
+    return "\n".join(lines)
 
-def evaluate_file(file_path: str) -> Optional[Dict[str, Any]]:
-    """Evaluate a single extraction result file."""
+def process_file(file_path: str) -> Optional[Tuple[List[Dict], Dict]]:
+    """Process a single file and return raw results and stats."""
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-    except Exception:
+    except Exception as e:
+        print(f"Error reading {file_path}: {e}")
         return None
-    
-    # Check for pre-computed results
-    if isinstance(data, dict) and 'summary' in data:
-        if 'type_statistics' in data or 'type_stats' in data:
-            return data
-        return None
-    
-    results = []
-    type_stats = {}
+        
+    processed_results = []
     
     for item in data:
-        if not isinstance(item, dict):
-            continue
-        
         task_type = item.get('type', '')
-        if not task_type:
-            continue
         
-        if task_type not in type_stats:
-            type_stats[task_type] = {'total': 0, 'correct': 0, 'extracted': 0}
-        
-        type_stats[task_type]['total'] += 1
-        
-        if item.get('extraction_success', False):
-            type_stats[task_type]['extracted'] += 1
-        
-        # Evaluate based on task type
-        if task_type in ['Fine-grained Grounding', 'Correspondence-Pointing']:
-            result = evaluate_coordinate_task(item)
+        # Route to appropriate evaluator
+        # Note: Ensure these type strings match your JSON data exactly
+        if task_type in ['Fine-grained Grounding', 'Correspondence-Pointing', 'Level 1', 'Level 4']:
+            res = evaluate_coordinate_task(item)
         else:
-            result = evaluate_letter_task(item)
-        
-        results.append(result)
-        
-        if result['score'] == 1:
-            type_stats[task_type]['correct'] += 1
-    
-    summary = _calculate_statistics(file_path, len(data), type_stats)
-    
-    return {
-        'summary': summary,
-        'type_stats': type_stats,
-        'results': results
-    }
-
-
-def _calculate_statistics(file_path: str, total_items: int, type_stats: Dict) -> Dict[str, Any]:
-    """Calculate evaluation statistics."""
-    total_all = sum(stats['total'] for stats in type_stats.values())
-    extracted_all = sum(stats['extracted'] for stats in type_stats.values())
-    correct_all = sum(stats['correct'] for stats in type_stats.values())
-    
-    summary = {
-        'file_path': file_path,
-        'total_items': total_items,
-        'type_statistics': {}
-    }
-    
-    if total_all > 0:
-        summary['overall_statistics'] = {
-            'total': total_all,
-            'extracted': extracted_all,
-            'correct': correct_all,
-            'extraction_rate': round(extracted_all / total_all * 100, 2),
-            'accuracy': round(correct_all / extracted_all * 100, 2) if extracted_all > 0 else 0,
-            'overall_score': round(correct_all / total_all * 100, 2)
-        }
-    
-    for task_type, stats in type_stats.items():
-        if stats['total'] > 0:
-            summary['type_statistics'][task_type] = {
-                'total': stats['total'],
-                'extracted': stats['extracted'],
-                'correct': stats['correct'],
-                'extraction_rate': round(stats['extracted'] / stats['total'] * 100, 2),
-                'accuracy': round(stats['correct'] / stats['extracted'] * 100, 2) if stats['extracted'] > 0 else 0,
-                'overall_score': round(stats['correct'] / stats['total'] * 100, 2)
-            }
-    
-    return summary
-
-
-def generate_excel_report(benchmark_results: Dict[str, Dict], excel_file: str):
-    """Generate Excel evaluation report with one sheet per benchmark."""
-    with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
-        for benchmark_name, models_results in benchmark_results.items():
-            all_types = set()
-            for result in models_results.values():
-                if result and 'summary' in result:
-                    all_types.update(result['summary'].get('type_statistics', {}).keys())
+            res = evaluate_letter_task(item)
             
-            sorted_types = sorted(all_types)
-            
-            rows = []
-            for model_name, result in models_results.items():
-                if not (result and 'summary' in result):
-                    continue
-                    
-                summary = result['summary']
-                overall = summary.get('overall_statistics', {})
-                type_stats = summary.get('type_statistics', {})
-                
-                row = {
-                    'Model': model_name,
-                    'Extraction Rate': overall.get('extraction_rate', 0),
-                    'Overall Score': overall.get('overall_score', 0)
-                }
-                
-                for task_type in sorted_types:
-                    row[task_type] = type_stats.get(task_type, {}).get('overall_score', 0)
-                
-                rows.append(row)
-            
-            if rows:
-                df = pd.DataFrame(rows)
-                df.to_excel(writer, sheet_name=benchmark_name[:31], index=False)
-
-
-def _process_extracted_results(extracted_root: str) -> Dict[str, Any]:
-    """Process extracted results and evaluate."""
-    results = {}
-    
-    # Find all extracted_*.json files
-    extracted_files = glob.glob(os.path.join(extracted_root, "extracted_*.json"))
-    
-    if not extracted_files:
-        return {}
-    
-    for file_path in extracted_files:
-        filename = os.path.basename(file_path)
-        model_name = filename.replace('extracted_', '').replace('.json', '')
+        processed_results.append(res)
         
-        result = evaluate_file(file_path)
-        if result is not None:
-            results[model_name] = result
-            # Print summary
-            if 'summary' in result and 'overall_statistics' in result['summary']:
-                overall = result['summary']['overall_statistics']
-                print(f"  {model_name}: {overall.get('overall_score', 0):.2f}% "
-                      f"({overall.get('correct', 0)}/{overall.get('total', 0)})")
-    
-    return results
-
+    stats = calculate_hierarchical_stats(processed_results)
+    return processed_results, stats
 
 def main():
-    parser = argparse.ArgumentParser(description='Evaluate extraction results')
+    parser = argparse.ArgumentParser(description='Evaluate extraction results with fine-grained stats')
     parser.add_argument('--extracted_root', type=str, required=True,
                        help='Directory containing extracted_*.json files')
     parser.add_argument('--output_dir', type=str, required=True,
-                       help='Output directory for evaluation reports')
+                       help='Output directory for report files')
     args = parser.parse_args()
     
     if not os.path.exists(args.extracted_root):
         print(f"Error: Directory not found: {args.extracted_root}")
         return
-    
+        
     os.makedirs(args.output_dir, exist_ok=True)
+    report_file_path = os.path.join(args.output_dir, "evaluation_report.txt")
     
-    results = _process_extracted_results(args.extracted_root)
+    # Clear previous report
+    with open(report_file_path, 'w', encoding='utf-8') as f:
+        f.write("Evaluation Report\n")
     
-    if not results:
-        print("Error: No results found")
+    # Find files
+    extracted_files = glob.glob(os.path.join(args.extracted_root, "extracted_*.json"))
+    if not extracted_files:
+        print("No extracted_*.json files found.")
         return
-    
-    # Generate Excel report
-    benchmark_results = {"CrossPoint-Bench": results}
-    excel_file = os.path.join(args.output_dir, "evaluation_summary.xlsx")
-    generate_excel_report(benchmark_results, excel_file)
-    
-    print(f"✓ Report: {excel_file}")
 
+    print(f"Found {len(extracted_files)} files. Evaluating...\n")
+
+    for file_path in sorted(extracted_files):
+        filename = os.path.basename(file_path)
+        model_name = filename.replace('extracted_', '').replace('.json', '')
+        
+        result_tuple = process_file(file_path)
+        if not result_tuple:
+            continue
+            
+        _, stats = result_tuple
+        
+        # Generate Report String
+        report_str = format_report(model_name, stats)
+        
+        # 1. Print to Console
+        print(report_str)
+        print("\n")
+        
+        # 2. Append to File
+        with open(report_file_path, 'a', encoding='utf-8') as f:
+            f.write(report_str + "\n\n")
+            
+    print(f"✓ Full report saved to: {report_file_path}")
 
 if __name__ == "__main__":
     main()
